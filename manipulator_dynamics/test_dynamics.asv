@@ -1,0 +1,100 @@
+% Script file to test the codes for dynamics for serial chain manipulators
+% The code is for manipulators with degrees of freedom >= 6.
+
+% Test using the Elbow manipulator. The reference configuration is the
+% configuration with theta = 0;
+
+clear all;
+clc;
+
+%% Enter all information pertaining to a manipulator
+% Link Lengths for the Elbow manipulator
+
+L0 = 1;
+L1 = 1;
+L2 = 0.5;
+L3 = 0.2;
+
+% Joint types for the manipulator
+
+type_joint = ['R'; 'R'; 'R'; 'R'; 'R'; 'R'];
+num_joints = length(type_joint);
+
+% Axes Description for each joint in the reference configuration
+
+w1r = [0;0;1];
+w2r = [-1;0;0];
+w3r = [-1;0;0];
+w4r = [0;0;1];
+w5r = [-1;0;0];
+w6r = [0;1;0];
+wr = [w1r w2r w3r w4r w5r w6r];
+
+% Choice of points on the axis for each joint in the reference
+% configuration
+
+q1r = [0;0; L0];
+q2r = q1r;
+q3r = [0;L1;L0];
+q4r = [0; L1+L2; L0];
+q5r = q4r;
+q6r = q4r;
+qr = [q1r q2r q3r q4r q5r q6r];
+
+% Transformation for tool frame in reference configuration
+
+p_st0 = [0; L1 + L2; L0];
+R_st0 = eye(3,3);
+last_line = [zeros(1,3) 1];
+gst0 = [R_st0 p_st0; last_line];
+
+% Transformation of the link cg frames in reference configuration
+g_s_ell_0 = zeros(4,4,6); %% The number 6 will change depending on the DoF of the manipulator!!!
+g_s_ell_0(:,:,1) = [eye(3,3) [0; 0; L0/2]; last_line];
+g_s_ell_0(:,:,2) = [eye(3,3) [0; L1/2; L0]; last_line];
+g_s_ell_0(:,:,3) = [eye(3,3) [0; L1 + L2/2; L0]; last_line];
+g_s_ell_0(:,:,4) = [eye(3,3) [0; L1+L2+L3/2; L0]; last_line];
+g_s_ell_0(:,:,5) = [eye(3,3) [0; L1+L2+L3/2; L0]; last_line];
+g_s_ell_0(:,:,6) = [eye(3,3) [0; L1+L2+L3/2; L0]; last_line];
+
+% Input the choice of configuration and rate of change of configuration
+
+%theta = pi/3*ones(6,1);
+theta = rand(num_joints,1)*2*pi;
+%theta = 0*ones(6,1);
+%theta = [0; pi/3; pi/3; pi/3; pi/3; pi/3];
+thetadot = rand(num_joints,1);
+%thetadot = ones(6,1);
+
+% Enter the parameters for dynamics
+% These numbers are generated randomly and do not correspond to any real 
+% manipulator!!!
+m1 = 1; m2 = 1; m3 = 1; m4 = 0.25; m5 = 0.25; m6 = 0.25;
+m = [m1; m2; m3; m4; m5; m6];
+I_all_links_cg = zeros(3,3,6); %% This line needs to be changed based on the DoF of the manipulator 
+I_all_links_cg(:,:,1) = diag([1.2, 0.8, 0.7]); %First Link
+I_all_links_cg(:,:,2) = diag([1.4, 0.9, 0.8]);
+I_all_links_cg(:,:,3) = diag([1.2, 0.8, 0.7]);
+I_all_links_cg(:,:,4) = diag([0.8, 0.4, 0.5]);
+I_all_links_cg(:,:,5) = diag([0.8, 0.4, 0.5]);
+I_all_links_cg(:,:,6) = diag([0.8, 0.4, 0.5]);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% This part is required in any code that has to compute the Mass matrix
+% and Coriolis matrix of the manipulator. This can be used for simulation
+% and/or control. You need to write code for computing the other terms like
+% gravity and any other potential/non-potential general
+% Computing the reflected intertia matrix
+
+mass_all_links_cg = zeros(6,6,num_joints);
+for i = 1:num_joints
+    mass_all_links_cg(1:3,1:3,i) = m(i)*eye(3);
+    mass_all_links_cg(4:6,4:6,i) = I_all_links_cg(:,:,i);
+end
+mass_all_links_s = compute_reflected_inertia(g_s_ell_0, mass_all_links_cg); 
+xi_joints = joint_twists(type_joint, wr, qr);
+
+[mass_matrix, coriolis_matrix] = compute_mass_matrix(mass_all_links_s, xi_joints, theta, thetadot);
+eigs(mass_matrix)
+%coriolis_matrix = compute_coriolis_matrix(mass_all_links_s, theta, thetadot);
